@@ -1,10 +1,6 @@
-# Ledger
+# budgy
 
-A Next.js port of the dashboard prototype — same UI, but backed by real
-Postgres data and Plaid instead of the browser's local storage. The
-frontend (`pages/index.js`) is intentionally close to the original
-prototype's HTML/CSS/JS: overlays, colors, and interactions are unchanged,
-only the data layer now talks to `pages/api/*` instead of `window.storage`.
+Budgy is a mobile-first personal budgeting app that connects to your real bank and credit card accounts via the Plaid API, automatically pulling in new transactions for you to categorize and track against monthly budgets. It's built as a single-user application by design — this lets it run on Plaid's free Trial plan (up to 10 linked accounts) rather than requiring a commercial Plaid integration. Each person who deploys Budgy uses their own Plaid client_id and secret, so their own accounts stay within that 10-connection limit rather than sharing a pool with other users.
 
 ## 1. Install dependencies
 
@@ -27,14 +23,15 @@ Easiest option: a free [Supabase](https://supabase.com) project.
    had — Groceries, Dining Out, etc. Skip it if you'd rather add your own
    from the app.)
 
+   orrrrrr you can just run the contents of each file directly into Supabase SQL eduitor to initialize (what I did)
+
 ## 3. Get your Plaid keys
 
 1. In the [Plaid Dashboard](https://dashboard.plaid.com), go to
    **Team Settings → Keys** and copy your `client_id` and `secret`.
 2. Start with the **Sandbox** secret and `PLAID_ENV=sandbox` — Sandbox
-   uses fake bank data (username `user_good` / password `pass_good` in
-   Plaid Link) so you can test the whole flow before touching real
-   accounts.
+   uses fake bank data so you can test the whole flow before touching real
+   accounts. Primarily for testing you will want to use 'user_transactions_dynamic' user to test transactions. 
 3. When you're ready to link your actual cards, switch to your
    **Production** secret (this is what your free Trial plan uses —
    see the note below) and set `PLAID_ENV=production`.
@@ -45,24 +42,15 @@ Easiest option: a free [Supabase](https://supabase.com) project.
 > Production secret/environment as a paid plan; the Trial limits are
 > enforced on Plaid's side, not by an environment flag.
 
+Note: For Plaid connections in the trial plan, once a connection is MADE. It cannot be removed/undone, so keep this is mind to stay under the 10 connections limit. 
+
 ## 4. Configure environment variables
 
 ```bash
 cp .env.example .env.local
 ```
 
-Fill in:
-
-```
-PLAID_CLIENT_ID=...
-PLAID_SECRET=...
-PLAID_ENV=sandbox          # switch to "production" once using real keys
-DATABASE_URL=...           # from step 2
-APP_URL=https://<your-ngrok-subdomain>.ngrok-free.app
-```
-
-`APP_URL` matters because Plaid's webhook needs a public HTTPS URL —
-`localhost` won't work. Get one with [ngrok](https://ngrok.com):
+Fill in contents viewing the env.local example file 
 
 ```bash
 ngrok http 3000
@@ -135,18 +123,8 @@ for the webhook, browse the app itself at localhost).
    ship it.
 
 ## Not done yet (on purpose)
-- **No stored sync cursor.** Every sync (webhook-triggered, on app load, or
-  the manual "SYNC NOW" button) re-checks everything Plaid currently has
-  for each item rather than only what's new since last time — inserts are
-  deduped via `on conflict (plaid_transaction_id) do nothing`, so this is
-  safe, just wasteful once you have many items or years of history. This
-  is also *why* missed webhook deliveries (e.g. this server being down
-  when Plaid tried to notify it) self-heal on the next sync rather than
-  losing transactions — worth keeping in mind if you later add a cursor
-  for efficiency: you'd want a periodic reconcile job as a safety net for
-  the same reason.
+- **Stored stored sync cursor and daily reconciliation.** Webhook-triggered and on-load syncs are incremental now (plaid_items.cursor) — fast, since they only ask Plaid for what's changed since last time instead of the full history. The tradeoff cursors introduce: an incremental sync has no way to notice something it was never told about, so a missed webhook delivery would otherwise go uncaught. pages/api/plaid/reconcile.js is the safety net — a full resync (cursor ignored) that Vercel Cron triggers once a day (vercel.json), authenticated via CRON_SECRET rather than your login session. Requires Vercel's Cron Jobs feature to actually fire — confirm it's enabled for your plan/project, and that CRON_SECRET is set in your environment variables.
 - **No push notifications yet.** The prototype's whole premise was an
   alert every time a card is used — right now you rely on opening the app
-  (which syncs automatically on load) or tapping "SYNC NOW" to see new
-  transactions. Web Push (works for iOS home-screen PWAs on 16.4+) is the
+  (which syncs automatically on load). Web Push (works for iOS home-screen PWAs on 16.4+) is the
   natural next piece once the core loop above is working end to end.
