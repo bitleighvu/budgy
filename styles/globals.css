@@ -162,6 +162,14 @@
   .field-checkbox input{ margin-top:3px; flex:none; width:16px; height:16px; }
   .field-checkbox label{ font-family:'Space Grotesk',sans-serif; font-size:13px; color:var(--ink); line-height:1.4; }
   .field-hint{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft); }
+  .export-presets{ display:flex; flex-wrap:wrap; gap:8px; }
+  .export-preset{
+    background:var(--paper-dim); border:1px solid var(--rule); color:var(--ink);
+    padding:8px 12px; border-radius:16px; font-family:'Space Grotesk',sans-serif;
+    font-size:12px; font-weight:600; cursor:pointer;
+  }
+  .export-preset:hover{ border-color:var(--ink-soft); }
+  .export-preset.active{ background:var(--blue); border-color:var(--blue); color:#fff; }
   .excl-tag{
     margin-left:8px; font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:600;
     letter-spacing:0.05em; color:var(--ink-soft); border:1px solid var(--rule);

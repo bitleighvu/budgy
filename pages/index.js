@@ -12,7 +12,7 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>budgy</title>
+        <title>Budgy — Spending Tracker</title>
       </Head>
 
       <div className="sheet">
@@ -63,6 +63,7 @@ export default function Home() {
         </div>
         <button className="nav-item" id="connectBankBtn">Connect Bank Account</button>
         <button className="nav-item" id="manageCategoriesBtn">Edit Budget Categories</button>
+        <button className="nav-item" id="exportBtn">Export Transactions</button>
         <div className="nav-divider"></div>
         <button className="nav-item nav-item-danger" id="signOutBtn">Sign Out</button>
       </div>
@@ -588,13 +589,127 @@ function initLedgerApp() {
     overlay.classList.add('open');
   });
 
-  // Basic Auth has no real server-side session to invalidate — this sends
-  // a request with deliberately wrong credentials, which makes most
-  // browsers drop the valid credentials they had cached for this origin,
-  // then reloads so the login prompt reappears. It's a best-effort browser
-  // trick, not a true sign-out; anyone with physical access to this
-  // browser before it re-locks could still hit back/forward and see
-  // cached content until the reload completes.
+  function csvEscape(val){
+    var s = val==null ? '' : String(val);
+    if (/[",\n]/.test(s)) s = '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+  function fmtDateInput(d){ return d.toISOString().slice(0,10); }
+
+  function downloadTransactionsCsv(from, to){
+    var rows = state.transactions
+      .filter(function(t){
+        if (from && t.date < from) return false;
+        if (to && t.date > to) return false;
+        return true;
+      })
+      .sort(function(a,b){ return a.date.localeCompare(b.date); });
+
+    var header = ['Date','Month','Merchant','Category','Amount','Description'];
+    var lines = [header.map(csvEscape).join(',')];
+    rows.forEach(function(t){
+      var d = new Date(t.date + 'T00:00:00');
+      var monthLabel = monthNames[d.getMonth()] + ' ' + d.getFullYear();
+      var cat = state.categories.find(function(c){ return c.id===t.categoryId; });
+      lines.push([
+        t.date,
+        monthLabel,
+        t.merchant,
+        cat ? cat.name : 'Uncategorized',
+        t.amount.toFixed(2),
+        t.description || ''
+      ].map(csvEscape).join(','));
+    });
+
+    var blob = new Blob([lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'budgy-transactions' + (from || to ? '_' + (from||'start') + '_to_' + (to||'now') : '_all-time') + '.csv';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function openExportModal(){
+    closeNavMenu();
+    var todayStr = fmtDateInput(new Date());
+    modal.innerHTML =
+      '<h2>Export transactions</h2>'+
+      '<div class="field"><label>Quick range</label>'+
+        '<div class="export-presets">'+
+          '<button type="button" class="export-preset" data-preset="all">All Time</button>'+
+          '<button type="button" class="export-preset" data-preset="thisMonth">This Month</button>'+
+          '<button type="button" class="export-preset" data-preset="lastMonth">Last Month</button>'+
+          '<button type="button" class="export-preset" data-preset="last30">Last 30 Days</button>'+
+          '<button type="button" class="export-preset" data-preset="last60">Last 60 Days</button>'+
+          '<button type="button" class="export-preset" data-preset="last90">Last 90 Days</button>'+
+          '<button type="button" class="export-preset" data-preset="ytd">YTD</button>'+
+          '<button type="button" class="export-preset" data-preset="lastYear">Last Year</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="field"><label for="exportFrom">From</label><input type="date" id="exportFrom"></div>'+
+      '<div class="field"><label for="exportTo">To</label><input type="date" id="exportTo"></div>'+
+      '<div class="modal-actions">'+
+        '<button class="btn-secondary" id="cancelExport">Cancel</button>'+
+        '<button class="btn-primary" id="confirmExport">Download CSV</button>'+
+      '</div>';
+    overlay.classList.add('open');
+    document.getElementById('cancelExport').addEventListener('click', closeModal);
+
+    function setRange(fromStr, toStr){
+      document.getElementById('exportFrom').value = fromStr || '';
+      document.getElementById('exportTo').value = toStr || '';
+    }
+    modal.querySelectorAll('.export-preset').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        modal.querySelectorAll('.export-preset').forEach(function(b){ b.classList.remove('active'); });
+        btn.classList.add('active');
+        var now = new Date();
+        var preset = btn.getAttribute('data-preset');
+        if (preset==='all'){
+          setRange('', '');
+        } else if (preset==='thisMonth'){
+          setRange(fmtDateInput(new Date(now.getFullYear(), now.getMonth(), 1)), todayStr);
+        } else if (preset==='lastMonth'){
+          setRange(
+            fmtDateInput(new Date(now.getFullYear(), now.getMonth()-1, 1)),
+            fmtDateInput(new Date(now.getFullYear(), now.getMonth(), 0))
+          );
+        } else if (preset==='last30'){
+          var d30 = new Date(now); d30.setDate(d30.getDate()-30);
+          setRange(fmtDateInput(d30), todayStr);
+        } else if (preset==='last60'){
+          var d60 = new Date(now); d60.setDate(d60.getDate()-60);
+          setRange(fmtDateInput(d60), todayStr);
+        } else if (preset==='last90'){
+          var d90 = new Date(now); d90.setDate(d90.getDate()-90);
+          setRange(fmtDateInput(d90), todayStr);
+        } else if (preset==='ytd'){
+          setRange(fmtDateInput(new Date(now.getFullYear(), 0, 1)), todayStr);
+        } else if (preset==='lastYear'){
+          setRange(
+            fmtDateInput(new Date(now.getFullYear()-1, 0, 1)),
+            fmtDateInput(new Date(now.getFullYear()-1, 11, 31))
+          );
+        }
+      });
+    });
+    ['exportFrom','exportTo'].forEach(function(id){
+      document.getElementById(id).addEventListener('input', function(){
+        modal.querySelectorAll('.export-preset').forEach(function(b){ b.classList.remove('active'); });
+      });
+    });
+    document.getElementById('confirmExport').addEventListener('click', function(){
+      var from = document.getElementById('exportFrom').value;
+      var to = document.getElementById('exportTo').value;
+      downloadTransactionsCsv(from, to);
+      closeModal();
+    });
+  }
+  document.getElementById('exportBtn').addEventListener('click', openExportModal);
+
   document.getElementById('signOutBtn').addEventListener('click', function(){
     fetch('/api/logout', { method: 'POST' }).catch(function(){}).then(function(){
       window.location.href = '/login';
