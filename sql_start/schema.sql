@@ -35,6 +35,7 @@ create table if not exists categories (
   color_idx   int not null default 0,
   exclude_from_spending boolean not null default false, -- e.g. reimbursements, transfers: real transactions that shouldn't count as spend
   sort_order  int not null default 0, -- user-controlled display order on the dashboard
+  archived    boolean not null default false, -- "deleting" archives instead of hard-deleting, so past transactions keep their category and don't get dumped back into the categorize queue
   created_at  timestamptz not null default now()
 );
 
