@@ -9,15 +9,20 @@ export default async function handler(req, res) {
     const { name, budget, month, excludeFromSpending } = req.body;
     if (!name || !name.trim()) return res.status(400).json({ error: 'name is required' });
 
-    const countRes = await pool.query(
-      'select count(*)::int as n from categories where user_id = $1',
+    const usedRes = await pool.query(
+      'select color_idx from categories where user_id = $1',
       [DEMO_USER_ID]
     );
-    const colorIdx = countRes.rows[0].n;
+    const used = new Set(usedRes.rows.map((r) => r.color_idx));
+    const PALETTE_SIZE = 9; // must match CATEGORY_PALETTE.length in pages/index.js
+    let colorIdx = usedRes.rows.length % PALETTE_SIZE; // fallback once every slot is taken
+    for (let i = 0; i < PALETTE_SIZE; i++) {
+      if (!used.has(i)) { colorIdx = i; break; }
+    }
 
     const catRes = await pool.query(
       'insert into categories (user_id, name, color_idx, exclude_from_spending, sort_order) values ($1, $2, $3, $4, $5) returning id',
-      [DEMO_USER_ID, name.trim(), colorIdx, !!excludeFromSpending, countRes.rows[0].n]
+      [DEMO_USER_ID, name.trim(), colorIdx, !!excludeFromSpending, usedRes.rows.length]
     );
     const categoryId = catRes.rows[0].id;
 

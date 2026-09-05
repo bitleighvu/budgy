@@ -7,7 +7,7 @@ export default async function handler(req, res) {
 
   try {
     const catRes = await pool.query(
-      'select id, name, color_idx, exclude_from_spending from categories where user_id = $1 order by sort_order, created_at',
+      'select id, name, color_idx, exclude_from_spending, archived from categories where user_id = $1 order by sort_order, created_at',
       [DEMO_USER_ID]
     );
     const categories = catRes.rows.map((r) => ({
@@ -15,6 +15,7 @@ export default async function handler(req, res) {
       name: r.name,
       colorIdx: r.color_idx,
       excludeFromSpending: r.exclude_from_spending,
+      archived: r.archived,
     }));
 
     const budgetRes = await pool.query(
@@ -44,7 +45,15 @@ export default async function handler(req, res) {
       description: r.description,
     }));
 
-    res.status(200).json({ categories, budgets, transactions });
+    const itemsRes = await pool.query(
+      'select id, institution_name, created_at from plaid_items order by created_at'
+    );
+    const plaidItems = itemsRes.rows.map((r) => ({
+      id: r.id,
+      institutionName: r.institution_name || 'Connected account',
+    }));
+
+    res.status(200).json({ categories, budgets, transactions, plaidItems });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to load state' });

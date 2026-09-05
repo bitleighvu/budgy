@@ -12,13 +12,14 @@ export default function Home() {
   return (
     <>
       <Head>
-        <title>Budgy — Spending Tracker</title>
+        <title>budgy</title>
       </Head>
 
       <div className="sheet">
         <header>
           <div className="sticky-header">
             <div className="brand-row">
+              <button className="hamburger-btn" id="navMenuBtn" aria-label="Open menu">☰</button>
               <div className="brand">budgy</div>
               <button className="analytics-icon-btn" id="analyticsBtn" aria-label="View analytics">📊</button>
             </div>
@@ -49,11 +50,21 @@ export default function Home() {
 
         <button className="add-cat-btn" id="addCategoryBtn">+ ADD CATEGORY</button>
         <div className="fab-wrap">
-          <button className="fab-secondary connect" id="connectBankBtn">+ CONNECT BANK ACCOUNT</button>
-          <button className="fab-secondary" id="syncNowBtn">↻ SYNC NOW</button>
-          <button className="fab" id="simulateBtn">+ SIMULATE TRANSACTION</button>
-          <div className="hint">Manual entry — for cash, or anything Plaid hasn&apos;t synced yet</div>
+          <button className="fab" id="simulateBtn">+ ADD TRANSACTION</button>
+          <div className="hint">Manual entry — for cash or any other transactions</div>
         </div>
+      </div>
+
+      <div className="nav-backdrop" id="navBackdrop"></div>
+      <div className="nav-overlay" id="navOverlay" role="dialog" aria-modal="true" aria-label="Menu">
+        <div className="nav-header">
+          <div className="nav-title">Menu</div>
+          <button className="nav-close" id="navClose" aria-label="Close menu">✕</button>
+        </div>
+        <button className="nav-item" id="connectBankBtn">Connect Bank Account</button>
+        <button className="nav-item" id="manageCategoriesBtn">Edit Budget Categories</button>
+        <div className="nav-divider"></div>
+        <button className="nav-item nav-item-danger" id="signOutBtn">Sign Out</button>
       </div>
 
       <div className="modal-overlay" id="modalOverlay">
@@ -61,7 +72,11 @@ export default function Home() {
       </div>
 
       <div className="cz-overlay" id="czOverlay" role="dialog" aria-modal="true" aria-label="Categorize transactions">
-        <div className="cz-progressbar"><div className="cz-progressbar-fill" id="czProgressBarFill"></div></div>
+        <div className="cz-top-row">
+          <div className="cz-progressbar"><div className="cz-progressbar-fill" id="czProgressBarFill"></div></div>
+          <span className="cz-progress-count" id="czProgressCount"></span>
+          <button className="cz-close" id="czClose" aria-label="Close">✕</button>
+        </div>
         <div className="cz-body" id="czBody"></div>
       </div>
 
@@ -121,10 +136,29 @@ function initLedgerApp() {
     return CATEGORY_PALETTE[idx];
   }
 
-  var state = { categories: [], budgets: {}, transactions: [] };
+  var state = { categories: [], budgets: {}, transactions: [], plaidItems: [] };
 
   function load(){
     return fetch('/api/state').then(function(r){ return r.json(); }).then(function(data){ state = data; });
+  }
+
+  // Wraps fetch so a failed request surfaces a real, visible error instead
+  // of the button silently doing nothing — the previous behavior made
+  // production issues (bad DATABASE_URL, missing env vars, etc.) look like
+  // the app just wasn't responding at all.
+  function apiFetch(url, options){
+    return fetch(url, options).then(function(r){
+      if (!r.ok){
+        return r.json().catch(function(){ return {}; }).then(function(body){
+          throw new Error((body && body.error) || (url + ' failed (' + r.status + ')'));
+        });
+      }
+      return r.json().catch(function(){ return {}; });
+    });
+  }
+  function showApiError(err){
+    console.error(err);
+    alert('Something went wrong: ' + err.message + '\n\nCheck the browser console and your server logs for details.');
   }
 
   function fmt(n){
@@ -191,7 +225,7 @@ function initLedgerApp() {
     listEl.innerHTML = '';
     var totalSpent = 0, totalBudget = 0;
 
-    state.categories.forEach(function(cat, idx){
+    state.categories.filter(function(c){ return !c.archived; }).forEach(function(cat, idx){
       var spent = spentFor(cat.id, currentMonth);
       var budget = budgetFor(cat.id, currentMonth);
       if (!cat.excludeFromSpending){
@@ -202,7 +236,7 @@ function initLedgerApp() {
       var color = colorFor(cat);
 
       var card = document.createElement('div');
-      card.className = 'cat-card';
+      card.className = 'cat-card' + (cat.excludeFromSpending ? ' excluded' : '');
       card.style.borderLeftColor = color.bg;
 
       var stampText = budget ? (status==='over' ? 'OVER' : Math.round(spent/budget*100) + '%') : '—';
@@ -220,22 +254,22 @@ function initLedgerApp() {
         : '<div class="txn-empty">No transactions this month.</div>';
 
       var exclTag = cat.excludeFromSpending ? '<span class="excl-tag">NOT COUNTED</span>' : '';
-      var isFirst = idx===0;
-      var isLast = idx===state.categories.length-1;
+
+      var stampHtml = cat.excludeFromSpending ? '' : '<div class="stamp '+stampClass+'">'+stampText+'</div>';
+      var amtsHtml = cat.excludeFromSpending
+        ? '<div class="cat-amts-row"><div class="cat-amts"><span class="spent">'+fmt(spent)+'</span></div></div>'
+        : '<div class="cat-amts-row"><div class="cat-amts"><span class="spent">'+fmt(spent)+'</span><span class="slash"> / </span><span class="budget" data-cat="'+cat.id+'" tabindex="0" role="button" aria-label="Edit budget for '+escapeHtml(cat.name)+'">'+fmt(budget)+'</span></div></div>';
+      var barHtml = cat.excludeFromSpending ? '' : '<div class="bar"><div class="bar-fill '+(status==='over'?'over':status==='warn'?'warn':'')+'" style="width:'+pct+'%"></div></div>';
 
       card.innerHTML =
-        '<div class="stamp '+stampClass+'">'+stampText+'</div>'+
         '<div class="cat-top">'+
           '<div class="cat-name">'+
-            '<span class="cat-reorder">'+
-              '<button class="reorder-btn" data-cat="'+cat.id+'" data-dir="up" aria-label="Move '+escapeHtml(cat.name)+' up"'+(isFirst?' disabled':'')+'>▲</button>'+
-              '<button class="reorder-btn" data-cat="'+cat.id+'" data-dir="down" aria-label="Move '+escapeHtml(cat.name)+' down"'+(isLast?' disabled':'')+'>▼</button>'+
-            '</span>'+
             '<span class="cat-dot" style="background:'+color.bg+'"></span>'+escapeHtml(cat.name)+exclTag+
           '</div>'+
-          '<div class="cat-amts"><span class="spent">'+fmt(spent)+'</span><span class="slash"> / </span><span class="budget" data-cat="'+cat.id+'" tabindex="0" role="button" aria-label="Edit budget for '+escapeHtml(cat.name)+'">'+fmt(budget)+'</span></div>'+
+          stampHtml+
         '</div>'+
-        '<div class="bar"><div class="bar-fill '+(status==='over'?'over':status==='warn'?'warn':'')+'" style="width:'+pct+'%"></div></div>'+
+        amtsHtml+
+        barHtml+
         '<div class="cat-meta">'+
           '<span class="txn-count">'+txns.length+' transaction'+(txns.length===1?'':'s')+'</span>'+
           '<button class="expand-btn" aria-expanded="false">▾</button>'+
@@ -247,7 +281,6 @@ function initLedgerApp() {
 
     document.getElementById('totalSpent').textContent = fmt(totalSpent);
     document.getElementById('totalBudget').textContent = fmt(totalBudget);
-
     var pending = getPending();
     var banner = document.getElementById('pendingBanner');
     if (pending.length){
@@ -262,24 +295,6 @@ function initLedgerApp() {
   }
 
   function attachCardEvents(){
-    document.querySelectorAll('.reorder-btn').forEach(function(btn){
-      btn.addEventListener('click', function(e){
-        e.stopPropagation();
-        if (btn.disabled) return;
-        var catId = btn.getAttribute('data-cat');
-        var dir = btn.getAttribute('data-dir');
-        var ids = state.categories.map(function(c){ return c.id; });
-        var idx = ids.indexOf(catId);
-        var swapIdx = dir==='up' ? idx-1 : idx+1;
-        if (swapIdx<0 || swapIdx>=ids.length) return;
-        var tmp = ids[idx]; ids[idx] = ids[swapIdx]; ids[swapIdx] = tmp;
-        fetch('/api/categories/reorder', {
-          method:'POST',
-          headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({ order: ids })
-        }).then(function(){ return load(); }).then(render);
-      });
-    });
     document.querySelectorAll('.expand-btn').forEach(function(btn){
       btn.addEventListener('click', function(){
         var list = btn.closest('.cat-card').querySelector('.txn-list');
@@ -364,18 +379,18 @@ function initLedgerApp() {
       var budget = parseFloat(document.getElementById('catBudget').value) || 0;
       var excludeFromSpending = document.getElementById('catExclude').checked;
       if (!name) return;
-      fetch('/api/categories', {
+      apiFetch('/api/categories', {
         method:'POST',
         headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ name: name, budget: budget, month: currentMonth, excludeFromSpending: excludeFromSpending })
-      }).then(function(){ return load(); }).then(function(){ closeModal(); render(); });
+      }).then(function(){ return load(); }).then(function(){ closeModal(); render(); }).catch(showApiError);
     });
   }
 
   function openConfirmDelete(cat){
     modal.innerHTML =
       '<h2>Remove "'+escapeHtml(cat.name)+'"?</h2>'+
-      '<p style="font-size:13px;color:var(--ink-soft);margin:0 0 4px;">Its past transactions stay in your history but won\'t be shown under this category anymore.</p>'+
+      '<p style="font-size:13px;color:var(--ink-soft);margin:0 0 4px;">Past transactions keep this category — nothing gets sent back to "to categorize." You just won\'t be able to file new transactions under it going forward.</p>'+
       '<div class="modal-actions">'+
         '<button class="btn-secondary" id="cancelDel">Cancel</button>'+
         '<button class="btn-primary" id="confirmDel" style="background:var(--red);">Remove</button>'+
@@ -383,16 +398,20 @@ function initLedgerApp() {
     overlay.classList.add('open');
     document.getElementById('cancelDel').addEventListener('click', closeModal);
     document.getElementById('confirmDel').addEventListener('click', function(){
-      fetch('/api/categories/' + cat.id, { method:'DELETE' })
+      apiFetch('/api/categories/' + cat.id, { method:'DELETE' })
         .then(function(){ return load(); })
-        .then(function(){ closeModal(); render(); });
+        .then(function(){ closeModal(); render(); })
+        .catch(showApiError);
     });
   }
 
   function openEditTransaction(t){
-    var options = state.categories.map(function(c){
-      return '<option value="'+c.id+'"'+(c.id===t.categoryId?' selected':'')+'>'+escapeHtml(c.name)+'</option>';
-    }).join('');
+    var options = state.categories
+      .filter(function(c){ return !c.archived || c.id===t.categoryId; })
+      .map(function(c){
+        var label = c.archived ? c.name + ' (archived)' : c.name;
+        return '<option value="'+c.id+'"'+(c.id===t.categoryId?' selected':'')+'>'+escapeHtml(label)+'</option>';
+      }).join('');
     modal.innerHTML =
       '<h2>Edit transaction</h2>'+
       '<div class="field"><label>Details</label><div style="font-family:\'IBM Plex Mono\',monospace;font-size:13px;color:var(--ink-soft);padding:2px 0 4px;">'+escapeHtml(t.merchant)+' · '+fmt(t.amount)+' · '+t.date+'</div></div>'+
@@ -422,15 +441,15 @@ function initLedgerApp() {
   function openSimulate(){
     var today = new Date().toISOString().slice(0,10);
     modal.innerHTML =
-      '<h2>Simulate transaction</h2>'+
-      '<p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 16px;">Like a real bank alert, it arrives uncategorized — you\'ll file it next.</p>'+
+      '<h2>Add transaction</h2>'+
+      '<p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 16px;">Arrives uncategorized, same as anything Plaid syncs — you\'ll file it next.</p>'+
       '<div class="field"><label for="txnMerchant">Merchant / location</label><input id="txnMerchant" type="text" placeholder="e.g. Amazon"></div>'+
       '<div class="field"><label for="txnAmount">Amount</label><input id="txnAmount" type="number" min="0" step="0.01" placeholder="0.00"></div>'+
       '<div class="field"><label for="txnDate">Date</label><input id="txnDate" type="date" value="'+today+'"></div>'+
       '<div class="field"><label for="txnDesc">Description (optional)</label><input id="txnDesc" type="text" placeholder="e.g. Split with roommate"></div>'+
       '<div class="modal-actions">'+
         '<button class="btn-secondary" id="cancelTxn">Cancel</button>'+
-        '<button class="btn-primary" id="confirmTxn">Send alert</button>'+
+        '<button class="btn-primary" id="confirmTxn">Add transaction</button>'+
       '</div>';
     overlay.classList.add('open');
     document.getElementById('txnMerchant').focus();
@@ -452,35 +471,167 @@ function initLedgerApp() {
     });
   }
 
+  // hamburger nav drawer
+  function openNavMenu(){
+    document.getElementById('navOverlay').classList.add('open');
+    document.getElementById('navBackdrop').classList.add('open');
+  }
+  function closeNavMenu(){
+    document.getElementById('navOverlay').classList.remove('open');
+    document.getElementById('navBackdrop').classList.remove('open');
+  }
+  document.getElementById('navMenuBtn').addEventListener('click', openNavMenu);
+  document.getElementById('navClose').addEventListener('click', closeNavMenu);
+  document.getElementById('navBackdrop').addEventListener('click', closeNavMenu);
+
+  function renderManageCategoriesModal(){
+    var rows = state.categories.filter(function(c){ return !c.archived; }).map(function(cat){
+      var color = colorFor(cat);
+      var tag = cat.excludeFromSpending ? '<span class="excl-tag">NOT COUNTED</span>' : '';
+      return '<div class="manage-cat-row" data-cat="'+cat.id+'">'+
+        '<span class="drag-handle" aria-label="Drag to reorder">⠿</span>'+
+        '<span class="cat-dot" style="background:'+color.bg+'"></span>'+
+        '<span class="manage-cat-name">'+escapeHtml(cat.name)+'</span>'+
+        tag+
+      '</div>';
+    }).join('');
+
+    var archived = state.categories.filter(function(c){ return c.archived; });
+    var archivedHtml = '';
+    if (archived.length){
+      archivedHtml =
+        '<div class="manage-cat-archived-title">Archived (' + archived.length + ')</div>'+
+        '<div class="manage-cat-list">'+archived.map(function(cat){
+          var color = colorFor(cat);
+          return '<div class="manage-cat-row archived">'+
+            '<span class="cat-dot" style="background:'+color.bg+'"></span>'+
+            '<span class="manage-cat-name">'+escapeHtml(cat.name)+'</span>'+
+            '<button class="manage-cat-unarchive" data-cat="'+cat.id+'">Unarchive</button>'+
+          '</div>';
+        }).join('')+'</div>';
+    }
+
+    modal.innerHTML =
+      '<h2>Edit budget categories</h2>'+
+      '<p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 16px;">Drag to reorder how categories appear on your dashboard.</p>'+
+      '<div class="manage-cat-list" id="manageCatList">'+(rows || '<div class="txn-empty">No categories yet.</div>')+'</div>'+
+      archivedHtml+
+      '<div class="modal-actions"><button class="btn-secondary" id="closeManageCat">Close</button></div>';
+    document.getElementById('closeManageCat').addEventListener('click', closeModal);
+    modal.querySelectorAll('.manage-cat-unarchive').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var catId = btn.getAttribute('data-cat');
+        btn.disabled = true;
+        btn.textContent = 'Unarchiving…';
+        apiFetch('/api/categories/' + catId, {
+          method:'PATCH',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ archived: false })
+        }).then(function(){ return load(); }).then(function(){
+          render();
+          renderManageCategoriesModal();
+        }).catch(showApiError);
+      });
+    });
+    setupCategoryDrag();
+  }
+
+  function setupCategoryDrag(){
+    var list = document.getElementById('manageCatList');
+    if (!list) return;
+    var draggingEl = null;
+
+    function rowAfterPointer(y){
+      var rows = Array.prototype.slice.call(list.querySelectorAll('.manage-cat-row:not(.dragging)'));
+      var closest = null, closestOffset = -Infinity;
+      rows.forEach(function(row){
+        var box = row.getBoundingClientRect();
+        var offset = y - box.top - box.height / 2;
+        if (offset < 0 && offset > closestOffset){ closestOffset = offset; closest = row; }
+      });
+      return closest;
+    }
+    function onPointerMove(e){
+      if (!draggingEl) return;
+      var after = rowAfterPointer(e.clientY);
+      if (after == null) list.appendChild(draggingEl);
+      else if (after !== draggingEl) list.insertBefore(draggingEl, after);
+    }
+    function onPointerUp(){
+      if (!draggingEl) return;
+      draggingEl.classList.remove('dragging');
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      var newOrder = Array.prototype.slice.call(list.querySelectorAll('.manage-cat-row')).map(function(row){
+        return row.getAttribute('data-cat');
+      });
+      draggingEl = null;
+      apiFetch('/api/categories/reorder', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ order: newOrder })
+      }).then(function(){ return load(); }).then(function(){ render(); }).catch(showApiError);
+    }
+    list.querySelectorAll('.drag-handle').forEach(function(handle){
+      handle.addEventListener('pointerdown', function(e){
+        e.preventDefault();
+        draggingEl = handle.closest('.manage-cat-row');
+        draggingEl.classList.add('dragging');
+        document.addEventListener('pointermove', onPointerMove);
+        document.addEventListener('pointerup', onPointerUp);
+      });
+    });
+  }
+  document.getElementById('manageCategoriesBtn').addEventListener('click', function(){
+    closeNavMenu();
+    renderManageCategoriesModal();
+    overlay.classList.add('open');
+  });
+
+  // Basic Auth has no real server-side session to invalidate — this sends
+  // a request with deliberately wrong credentials, which makes most
+  // browsers drop the valid credentials they had cached for this origin,
+  // then reloads so the login prompt reappears. It's a best-effort browser
+  // trick, not a true sign-out; anyone with physical access to this
+  // browser before it re-locks could still hit back/forward and see
+  // cached content until the reload completes.
+  document.getElementById('signOutBtn').addEventListener('click', function(){
+    fetch(window.location.href, {
+      headers: { 'Authorization': 'Basic ' + btoa('loggedout:loggedout') },
+      cache: 'no-store'
+    }).catch(function(){}).then(function(){
+      window.location.reload();
+    });
+  });
+
   // connect a real bank account via Plaid Link
   function connectBank(){
-    fetch('/api/plaid/create-link-token', {
+    apiFetch('/api/plaid/create-link-token', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body: JSON.stringify({})
     })
-      .then(function(r){ return r.json(); })
       .then(function(data){
         if (!data.link_token) throw new Error('No link_token returned');
         if (!window.Plaid) throw new Error('Plaid Link script not loaded yet — try again in a moment');
         var handler = window.Plaid.create({
           token: data.link_token,
           onSuccess: function(public_token, metadata){
-            fetch('/api/plaid/exchange-public-token', {
+            apiFetch('/api/plaid/exchange-public-token', {
               method:'POST',
               headers:{'Content-Type':'application/json'},
               body: JSON.stringify({
                 public_token: public_token,
                 institutionName: metadata && metadata.institution ? metadata.institution.name : null
               })
-            }).then(function(){ return load(); }).then(render);
+            }).then(function(){ return load(); }).then(function(){ render(); closeNavMenu(); }).catch(showApiError);
           }
         });
         handler.open();
       })
       .catch(function(err){
         console.error(err);
-        alert('Could not start Plaid Link — check PLAID_CLIENT_ID / PLAID_SECRET in .env.local and that the dev server was restarted after setting them.');
+        alert('Could not start Plaid Link: ' + err.message + '\n\nCheck PLAID_CLIENT_ID / PLAID_SECRET are set correctly and that the server was restarted/redeployed after setting them.');
       });
   }
 
@@ -504,6 +655,7 @@ function initLedgerApp() {
     czLastAction = null;
     render();
   }
+  document.getElementById('czClose').addEventListener('click', closeCategorize);
 
   function renderCzCard(){
     czQueue = getPending();
@@ -514,9 +666,13 @@ function initLedgerApp() {
     }
     var t = czQueue[czIndex];
     var doneCount = czTotal - czQueue.length;
-    document.getElementById('czProgressBarFill').style.width = (czTotal ? (doneCount/czTotal*100) : 0) + '%';
+    var czPct = czTotal ? (doneCount/czTotal*100) : 0;
+    var czFillEl = document.getElementById('czProgressBarFill');
+    czFillEl.style.width = czPct + '%';
+    czFillEl.style.minWidth = doneCount > 0 ? '2px' : '0px';
+    document.getElementById('czProgressCount').textContent = (czIndex+1) + ' of ' + czQueue.length;
 
-    var chips = state.categories.map(function(c){
+    var chips = state.categories.filter(function(c){ return !c.archived; }).map(function(c){
       var color = colorFor(c);
       return '<button class="cz-chip" data-cat="'+c.id+'" style="background:'+color.bg+';color:'+color.fg+'">'+escapeHtml(c.name)+'</button>';
     }).join('');
@@ -555,7 +711,8 @@ function initLedgerApp() {
       });
     });
     document.getElementById('czSkip').addEventListener('click', function(){
-      closeCategorize();
+      czIndex++;
+      renderCzCard();
     });
     var undoBtn = document.getElementById('czUndo');
     if (undoBtn){
@@ -905,28 +1062,6 @@ function initLedgerApp() {
   document.getElementById('addCategoryBtn').addEventListener('click', function(){ openAddCategory(); });
   document.getElementById('simulateBtn').addEventListener('click', openSimulate);
   document.getElementById('connectBankBtn').addEventListener('click', connectBank);
-  document.getElementById('syncNowBtn').addEventListener('click', function(){
-    var btn = document.getElementById('syncNowBtn');
-    var originalText = btn.textContent;
-    btn.textContent = 'SYNCING…';
-    btn.disabled = true;
-    fetch('/api/plaid/sync-all', { method:'POST' })
-      .then(function(r){ return r.json(); })
-      .then(function(data){
-        return load().then(function(){
-          render();
-          btn.textContent = originalText;
-          btn.disabled = false;
-          if (getPending().length) openCategorize();
-        });
-      })
-      .catch(function(err){
-        console.error(err);
-        btn.textContent = originalText;
-        btn.disabled = false;
-        alert('Sync failed — check that a bank account is connected and your Plaid keys are set.');
-      });
-  });
   document.getElementById('analyticsBtn').addEventListener('click', openAnalytics);
   document.getElementById('azClose').addEventListener('click', closeAnalytics);
   document.getElementById('azTabMonth').addEventListener('click', function(){ azPeriod='month'; azFilter=''; renderAnalytics(); });
@@ -949,17 +1084,15 @@ function initLedgerApp() {
   // Render immediately from whatever's already in the database — don't
   // make the first paint wait on a round trip to Plaid. Then catch up on
   // anything missed (a failed webhook delivery) quietly in the background.
+  // Reloading always lands on the dashboard now — pending transactions
+  // show via the banner, and opening the categorize flow is a deliberate
+  // tap, not something that happens to you on page load.
   load().then(function(){
     render();
-    if (getPending().length) openCategorize();
 
     fetch('/api/plaid/sync-all', { method:'POST' })
       .catch(function(){ /* fine if nothing's linked yet, or Plaid keys aren't set up */ })
       .then(function(){ return load(); })
-      .then(function(){
-        render();
-        var czAlreadyOpen = document.getElementById('czOverlay').classList.contains('open');
-        if (getPending().length && !czAlreadyOpen) openCategorize();
-      });
+      .then(function(){ render(); });
   });
 }
