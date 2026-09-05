@@ -111,9 +111,11 @@ for the webhook, browse the app itself at localhost).
    for personal use this is simpler than it sounds: free, real production
    data, up to 10 linked accounts, no business registration or contract.
    Get your production `client_id`/`secret` from the Dashboard.
-2. **Add `middleware.js` at the project root** (not inside `pages/`) for
-   Basic Auth — this is what stops anyone but you from opening the app.
-   Set `AUTH_USER` / `AUTH_PASSWORD` in your env.
+2. **Set your login credentials and session secret** — `AUTH_USER` /
+   `AUTH_PASSWORD` (checked by the login page) and `SESSION_TOKEN`
+   (generate with `openssl rand -hex 32`) in your env. `middleware.js` at
+   the project root enforces this on every route except the login page
+   itself and Plaid's webhook.
 3. **Generate `TOKEN_ENCRYPTION_KEY`**: `openssl rand -hex 32`. Store it
    somewhere durable — losing it makes every stored `access_token`
    permanently unreadable, which means re-linking every account.
@@ -133,11 +135,6 @@ for the webhook, browse the app itself at localhost).
    ship it.
 
 ## Not done yet (on purpose)
-
-- **Single-user only.** Every route is scoped to one fixed placeholder
-  user id (`lib/constants.js`). Fine for personal use; add real
-  multi-user auth (e.g. Supabase Auth) before this could ever serve more
-  than one person.
 - **No stored sync cursor.** Every sync (webhook-triggered, on app load, or
   the manual "SYNC NOW" button) re-checks everything Plaid currently has
   for each item rather than only what's new since last time — inserts are
