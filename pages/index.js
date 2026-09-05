@@ -596,11 +596,8 @@ function initLedgerApp() {
   // browser before it re-locks could still hit back/forward and see
   // cached content until the reload completes.
   document.getElementById('signOutBtn').addEventListener('click', function(){
-    fetch(window.location.href, {
-      headers: { 'Authorization': 'Basic ' + btoa('loggedout:loggedout') },
-      cache: 'no-store'
-    }).catch(function(){}).then(function(){
-      window.location.reload();
+    fetch('/api/logout', { method: 'POST' }).catch(function(){}).then(function(){
+      window.location.href = '/login';
     });
   });
 
