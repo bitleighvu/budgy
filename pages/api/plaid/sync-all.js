@@ -4,17 +4,18 @@ import { decryptToken } from '../../../lib/crypto';
 
 const pool = getPool();
 
-// Re-syncs every linked Plaid item right now, regardless of whether Plaid's
-// webhook ever successfully reached this server. Safe to call anytime:
-// it's idempotent (inserts use `on conflict (plaid_transaction_id) do
-// nothing`) and doesn't depend on a stored cursor, so it always re-checks
-// everything Plaid currently has for each item rather than only "new since
-// last time." This is the catch-up path for missed webhook deliveries —
-// e.g. the dev server being down when Plaid tried to notify it.
+// Incrementally re-syncs every linked Plaid item using each one's stored
+// cursor — fast, since it only asks Plaid for what's changed since last
+// time rather than the full history. Called on app load and from the
+// manual sync trigger. This is NOT the safety net for a missed webhook
+// delivery on its own anymore (a cursor-based sync only knows about
+// changes reported after the cursor it's given, so it can't retroactively
+// notice something it was never told about) — that job now belongs to the
+// daily full-reconciliation cron (see reconcile.js).
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).end();
   try {
-    const itemsRes = await pool.query('select item_id, access_token from plaid_items');
+    const itemsRes = await pool.query('select item_id, access_token, cursor from plaid_items');
     if (itemsRes.rows.length === 0) {
       console.log('[sync-all] no linked accounts to sync');
       return res.status(200).json({ ok: true, added: 0, items: [] });
@@ -24,8 +25,9 @@ export default async function handler(req, res) {
     for (const row of itemsRes.rows) {
       try {
         const access_token = decryptToken(row.access_token);
-        const added = await syncTransactionsForItem(pool, access_token);
-        results.push({ item_id: row.item_id, ok: true, added });
+        const result = await syncTransactionsForItem(pool, access_token, row.cursor);
+        await pool.query('update plaid_items set cursor = $1 where item_id = $2', [result.cursor, row.item_id]);
+        results.push({ item_id: row.item_id, ok: true, ...result });
       } catch (itemErr) {
         console.error('[sync-all] item ' + row.item_id + ' failed:', itemErr.response?.data || itemErr.message || itemErr);
         results.push({

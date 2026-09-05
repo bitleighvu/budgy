@@ -54,14 +54,15 @@ export default async function handler(req, res) {
   if (webhook_type === 'TRANSACTIONS' && webhook_code === 'SYNC_UPDATES_AVAILABLE') {
     try {
       const itemRes = await pool.query(
-        'select access_token from plaid_items where item_id = $1',
+        'select access_token, cursor from plaid_items where item_id = $1',
         [item_id]
       );
       if (itemRes.rows.length === 0) return res.status(200).end();
       const access_token = decryptToken(itemRes.rows[0].access_token);
 
-      const addedCount = await syncTransactionsForItem(pool, access_token);
-      res.status(200).json({ ok: true, added: addedCount });
+      const result = await syncTransactionsForItem(pool, access_token, itemRes.rows[0].cursor);
+      await pool.query('update plaid_items set cursor = $1 where item_id = $2', [result.cursor, item_id]);
+      res.status(200).json({ ok: true, ...result });
     } catch (err) {
       console.error(err.response?.data || err);
       res.status(500).json({ error: 'Webhook processing failed' });

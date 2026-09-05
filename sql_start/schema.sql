@@ -14,6 +14,7 @@ create table if not exists plaid_items (
   user_id           uuid not null references users(id) on delete cascade,
   item_id           text not null unique,       -- Plaid's item_id
   access_token      text not null,              -- encrypt before storing
+  cursor            text,                        -- /transactions/sync cursor; null means "sync from scratch"
   institution_name  text,
   created_at        timestamptz not null default now()
 );
