@@ -121,6 +121,18 @@
   .nav-item:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
   .nav-item-danger{ margin-top:auto; color:var(--red); }
   .nav-item-danger:hover{ background:#FDEAEC; }
+  .nav-item-toggle{ display:flex; align-items:center; justify-content:space-between; }
+  .toggle-switch{
+    width:40px; height:22px; border-radius:11px; background:var(--rule);
+    position:relative; flex:none; transition:background .2s ease;
+  }
+  .toggle-switch.on{ background:var(--blue); }
+  .toggle-knob{
+    position:absolute; top:2px; left:2px; width:18px; height:18px;
+    border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(45,48,71,0.3);
+    transition:left .2s ease;
+  }
+  .toggle-switch.on .toggle-knob{ left:20px; }
 
   .manage-cat-list{ display:flex; flex-direction:column; gap:8px; max-height:60vh; overflow-y:auto; padding:2px; }
   .manage-cat-row{

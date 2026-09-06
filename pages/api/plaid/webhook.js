@@ -2,6 +2,7 @@ import { getPool } from '../../../lib/db';
 import { syncTransactionsForItem } from '../../../lib/plaidSync';
 import { verifyPlaidWebhook } from '../../../lib/verifyPlaidWebhook';
 import { decryptToken } from '../../../lib/crypto';
+import { sendPushToAll } from '../../../lib/push';
 
 const pool = getPool();
 
@@ -61,14 +62,36 @@ export default async function handler(req, res) {
       const access_token = decryptToken(itemRes.rows[0].access_token);
 
       const result = await syncTransactionsForItem(pool, access_token, itemRes.rows[0].cursor);
-      await pool.query('update plaid_items set cursor = $1 where item_id = $2', [result.cursor, item_id]);
+      await pool.query(
+        'update plaid_items set cursor = $1, needs_reauth = false where item_id = $2',
+        [result.cursor, item_id]
+      );
+      if (result.added > 0) {
+        const plural = result.added === 1 ? '' : 's';
+        sendPushToAll({
+          title: 'New transaction' + plural + ' on budgy',
+          body: 'Time to categorize ' + result.added + ' transaction' + plural,
+          icon: '/budgy.jpg',
+          url: '/',
+        }).catch((err) => console.error('[push] failed:', err.message));
+      }
       res.status(200).json({ ok: true, ...result });
     } catch (err) {
+      const errorCode = err.response?.data?.error_code;
       console.error(err.response?.data || err);
+      if (errorCode === 'ITEM_LOGIN_REQUIRED') {
+        await pool.query('update plaid_items set needs_reauth = true where item_id = $1', [item_id]);
+      }
       res.status(500).json({ error: 'Webhook processing failed' });
     }
+  } else if (webhook_type === 'ITEM' && webhook_code === 'ERROR' && body.error?.error_code === 'ITEM_LOGIN_REQUIRED') {
+    // Plaid's proactive notification — arrives even without us having
+    // attempted a sync yet, e.g. right after the user changes their bank
+    // password.
+    await pool.query('update plaid_items set needs_reauth = true where item_id = $1', [item_id]);
+    res.status(200).end();
   } else {
-    // Other webhook types (ITEM, AUTH, etc.) — acknowledge and ignore for now.
+    // Other webhook types — acknowledge and ignore for now.
     res.status(200).end();
   }
 }

@@ -15,6 +15,7 @@ create table if not exists plaid_items (
   item_id           text not null unique,       -- Plaid's item_id
   access_token      text not null,              -- encrypt before storing
   cursor            text,                        -- /transactions/sync cursor; null means "sync from scratch"
+  needs_reauth      boolean not null default false, -- set when Plaid reports ITEM_LOGIN_REQUIRED; cleared on the next successful sync
   institution_name  text,
   created_at        timestamptz not null default now()
 );
@@ -66,3 +67,15 @@ create table if not exists transactions (
 create index if not exists idx_transactions_date on transactions(date);
 create index if not exists idx_transactions_category on transactions(category_id);
 create index if not exists idx_budgets_month on budgets(month);
+
+-- One row per browser/device that's enabled notifications. A single
+-- person can have several (phone, laptop, etc.) — each subscribes
+-- independently via the Push API.
+create table if not exists push_subscriptions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references users(id) on delete cascade,
+  endpoint    text not null unique,
+  p256dh      text not null,
+  auth        text not null,
+  created_at  timestamptz not null default now()
+);

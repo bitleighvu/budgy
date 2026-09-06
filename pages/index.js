@@ -86,6 +86,10 @@ export default function Home({ initialState }) {
         <button className="nav-item" id="connectBankBtn">Connect Bank Account</button>
         <button className="nav-item" id="manageCategoriesBtn">Edit Budget Categories</button>
         <button className="nav-item" id="exportBtn">Export Transactions</button>
+        <button className="nav-item nav-item-toggle" id="notificationsToggleRow">
+          <span>Notifications</span>
+          <span className="toggle-switch" id="notificationsToggleSwitch"><span className="toggle-knob"></span></span>
+        </button>
         <div className="nav-divider"></div>
         <button className="nav-item nav-item-danger" id="signOutBtn">Sign Out</button>
       </div>
@@ -522,6 +526,7 @@ function initLedgerApp(initialState) {
   function openNavMenu(){
     document.getElementById('navOverlay').classList.add('open');
     document.getElementById('navBackdrop').classList.add('open');
+    refreshNotificationsToggle();
   }
   function closeNavMenu(){
     document.getElementById('navOverlay').classList.remove('open');
@@ -796,6 +801,104 @@ function initLedgerApp(initialState) {
   document.getElementById('reauthBanner').addEventListener('click', function(){
     var flagged = (state.plaidItems || []).find(function(i){ return i.needsReauth; });
     if (flagged) reconnectItem(flagged.id);
+  });
+
+  // Push notifications — registers the service worker, asks for
+  // permission, and subscribes this specific browser/device. iOS Safari
+  // only supports this if the site has been added to the Home Screen
+  // (iOS 16.4+) and is being opened as that installed app — a regular
+  // Safari tab can't receive push on iOS, no way around that.
+  function urlBase64ToUint8Array(base64String) {
+    var padding = '='.repeat((4 - base64String.length % 4) % 4);
+    var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    var rawData = window.atob(base64);
+    var outputArray = new Uint8Array(rawData.length);
+    for (var i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+  function refreshNotificationsToggle(){
+    var toggle = document.getElementById('notificationsToggleSwitch');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      toggle.classList.remove('on');
+      return;
+    }
+    navigator.serviceWorker.getRegistration('/sw.js').then(function(reg){
+      if (!reg) { toggle.classList.remove('on'); return; }
+      return reg.pushManager.getSubscription();
+    }).then(function(sub){
+      if (sub) toggle.classList.add('on'); else toggle.classList.remove('on');
+    }).catch(function(){ toggle.classList.remove('on'); });
+  }
+
+  function enableNotifications(){
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      alert('Push notifications aren\'t supported in this browser. On iPhone, add this site to your Home Screen first (Share → Add to Home Screen), then try again from the installed app.');
+      return;
+    }
+    Notification.requestPermission().then(function(permission){
+      if (permission !== 'granted') {
+        alert('Notification permission was not granted.');
+        return;
+      }
+      navigator.serviceWorker.register('/sw.js')
+        .then(function(){
+          // register() resolves as soon as registration exists, which can
+          // be before the worker is actually active — pushManager.subscribe
+          // needs an active one. .ready specifically waits for that.
+          return navigator.serviceWorker.ready;
+        })
+        .then(function(registration){
+          return registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY)
+          });
+        })
+        .then(function(subscription){
+          return apiFetch('/api/push/subscribe', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(subscription)
+          });
+        })
+        .then(function(){
+          refreshNotificationsToggle();
+        })
+        .catch(function(err){
+          console.error(err);
+          alert('Could not enable notifications: ' + err.message);
+        });
+    });
+  }
+
+  function disableNotifications(){
+    navigator.serviceWorker.getRegistration('/sw.js').then(function(reg){
+      if (!reg) return;
+      return reg.pushManager.getSubscription().then(function(sub){
+        if (!sub) return;
+        var endpoint = sub.endpoint;
+        return sub.unsubscribe().then(function(){
+          return apiFetch('/api/push/unsubscribe', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify({ endpoint: endpoint })
+          });
+        });
+      });
+    }).then(function(){
+      refreshNotificationsToggle();
+    }).catch(function(err){
+      console.error(err);
+      alert('Could not disable notifications: ' + err.message);
+    });
+  }
+
+  document.getElementById('notificationsToggleRow').addEventListener('click', function(){
+    var toggle = document.getElementById('notificationsToggleSwitch');
+    if (toggle.classList.contains('on')) {
+      disableNotifications();
+    } else {
+      enableNotifications();
+    }
   });
 
   function connectBank(){

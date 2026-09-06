@@ -1,6 +1,7 @@
 import { getPool } from '../../../lib/db';
 import { syncTransactionsForItem } from '../../../lib/plaidSync';
 import { decryptToken } from '../../../lib/crypto';
+import { sendPushToAll } from '../../../lib/push';
 
 const pool = getPool();
 
@@ -31,18 +32,42 @@ export default async function handler(req, res) {
         const access_token = decryptToken(row.access_token);
         // No stored cursor passed — forces a full resync from scratch.
         const result = await syncTransactionsForItem(pool, access_token, undefined);
-        await pool.query('update plaid_items set cursor = $1 where item_id = $2', [result.cursor, row.item_id]);
+        await pool.query(
+          'update plaid_items set cursor = $1, needs_reauth = false where item_id = $2',
+          [result.cursor, row.item_id]
+        );
         results.push({ item_id: row.item_id, ok: true, ...result });
       } catch (itemErr) {
+        const errorCode = itemErr.response?.data?.error_code;
         console.error('[reconcile] item ' + row.item_id + ' failed:', itemErr.response?.data || itemErr.message || itemErr);
+        if (errorCode === 'ITEM_LOGIN_REQUIRED') {
+          await pool.query('update plaid_items set needs_reauth = true where item_id = $1', [row.item_id]);
+        }
         results.push({
           item_id: row.item_id,
           ok: false,
+          errorCode: errorCode || null,
           error: itemErr.response?.data?.error_message || itemErr.message || 'Unknown error',
         });
       }
     }
     console.log('[reconcile] ' + itemsRes.rows.length + ' item(s) fully reconciled');
+
+    const totalAdded = results.reduce((s, r) => s + (r.added || 0), 0);
+    if (totalAdded > 0) {
+      const plural = totalAdded === 1 ? '' : 's';
+      try {
+        await sendPushToAll({
+          title: 'New transaction' + plural + ' on budgy',
+          body: 'Time to categorize ' + totalAdded + ' transaction' + plural,
+          icon: '/budgy.jpg',
+          url: '/',
+        });
+      } catch (pushErr) {
+        console.error('[push] failed:', pushErr.message);
+      }
+    }
+
     res.status(200).json({ ok: true, items: results });
   } catch (err) {
     console.error('[reconcile] fatal error:', err);
