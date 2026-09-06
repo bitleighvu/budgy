@@ -31,7 +31,7 @@ export default function Home({ initialState }) {
   return (
     <>
       <Head>
-        <title>Budgy — Spending Tracker</title>
+        <title>budgy</title>
       </Head>
 
       <div className="sheet">
