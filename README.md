@@ -118,12 +118,9 @@ for the webhook, browse the app itself at localhost).
    domain, then redeploy so the env vars take effect.
 7. **Relink your real bank** — click "+ CONNECT BANK ACCOUNT" and log in
    with your actual credentials instead of a Sandbox test user.
-8. **Delete `pages/api/plaid/sandbox-inject.js`** if you kept it from
-   testing — it already no-ops outside Sandbox, but there's no reason to
-   ship it.
 
-## Not done yet (on purpose)
-- **Stored stored sync cursor and daily reconciliation.** Webhook-triggered and on-load syncs are incremental now (plaid_items.cursor) — fast, since they only ask Plaid for what's changed since last time instead of the full history. The tradeoff cursors introduce: an incremental sync has no way to notice something it was never told about, so a missed webhook delivery would otherwise go uncaught. pages/api/plaid/reconcile.js is the safety net — a full resync (cursor ignored) that Vercel Cron triggers once a day (vercel.json), authenticated via CRON_SECRET rather than your login session. Requires Vercel's Cron Jobs feature to actually fire — confirm it's enabled for your plan/project, and that CRON_SECRET is set in your environment variables.
+
+## Not done yet
 - **No push notifications yet.** The prototype's whole premise was an
   alert every time a card is used — right now you rely on opening the app
   (which syncs automatically on load). Web Push (works for iOS home-screen PWAs on 16.4+) is the

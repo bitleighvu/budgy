@@ -54,6 +54,9 @@
   .pending-banner{ display:none; margin-top:14px; width:100%; align-items:center; justify-content:space-between; background:#FEEBEC; border:1px solid var(--red); color:#c23947; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.06em; padding:10px 12px; cursor:pointer; border-radius:var(--radius); }
   .pending-banner.show{ display:flex; }
   .pending-banner span.arrow{ font-family:'Aptos','Segoe UI',sans-serif; font-size:14px; }
+  .reauth-banner{ display:none; margin-top:14px; width:100%; align-items:center; justify-content:space-between; background:#FEF3E2; border:1px solid var(--amber); color:#8a5a0f; font-family:'IBM Plex Mono',monospace; font-size:11px; font-weight:600; letter-spacing:0.06em; padding:10px 12px; cursor:pointer; border-radius:var(--radius); }
+  .reauth-banner.show{ display:flex; }
+  .reauth-banner span.arrow{ font-family:'Aptos','Segoe UI',sans-serif; font-size:14px; }
   .perf{ height:14px; background: radial-gradient(circle at center, transparent 3.5px, var(--paper) 4px) 0 0/16px 100%, #E4E4F0; }
   main{ padding:18px 22px 4px; }
   .cat-card{ position:relative; background:var(--paper); border:1px solid var(--rule); border-left-width:6px; border-radius:var(--radius); padding:16px 16px 12px; margin-bottom:14px; overflow:hidden; }

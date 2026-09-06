@@ -1,13 +1,32 @@
 import { useEffect } from 'react';
 import Head from 'next/head';
+import { getAppState } from '../lib/getAppState';
 
-export default function Home() {
+// Fetches directly from Postgres at render time — no HTTP round-trip to
+// /api/state needed for the very first paint, which is what was causing
+// the "everything disappears then reappears" flash on reload: previously
+// the page always shipped with an empty shell and only fetched real data
+// client-side after mount, guaranteeing a blank window on every load
+// while that request was in flight. If this fails (e.g. DB hiccup), fall
+// back to null and let the client-side fetch handle it as before, rather
+// than failing the whole page.
+export async function getServerSideProps() {
+  try {
+    const initialState = await getAppState();
+    return { props: { initialState } };
+  } catch (err) {
+    console.error('[getServerSideProps] failed to preload state:', err);
+    return { props: { initialState: null } };
+  }
+}
+
+export default function Home({ initialState }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     if (window.__ledgerInitialized) return; // guard against React 18 dev double-invoke
     window.__ledgerInitialized = true;
-    initLedgerApp();
-  }, []);
+    initLedgerApp(initialState);
+  }, [initialState]);
 
   return (
     <>
@@ -39,6 +58,9 @@ export default function Home() {
               <span className="total-amt" id="totalBudget">$0.00</span>
             </div>
           </div>
+          <button className="reauth-banner" id="reauthBanner">
+            <span id="reauthText"></span><span className="arrow">→</span>
+          </button>
           <button className="pending-banner" id="pendingBanner">
             <span id="pendingText"></span><span className="arrow">→</span>
           </button>
@@ -101,7 +123,7 @@ export default function Home() {
 // API routes (pages/api/*) instead of window.storage. Runs client-side
 // only, once, from the useEffect above.
 // ---------------------------------------------------------------------
-function initLedgerApp() {
+function initLedgerApp(initialState) {
   // window.innerHeight/vh units don't reliably shrink when a mobile keyboard
   // opens, which can leave modal content (and its buttons) hidden with no
   // way to scroll to them. visualViewport tracks the actually-visible area.
@@ -137,10 +159,23 @@ function initLedgerApp() {
     return CATEGORY_PALETTE[idx];
   }
 
-  var state = { categories: [], budgets: {}, transactions: [], plaidItems: [] };
+  var state = Object.assign(
+    { categories: [], budgets: {}, transactions: [], plaidItems: [] },
+    initialState || {}
+  );
 
   function load(){
-    return fetch('/api/state').then(function(r){ return r.json(); }).then(function(data){ state = data; });
+    return fetch('/api/state')
+      .then(function(r){
+        if (!r.ok) throw new Error('Failed to load state (' + r.status + ')');
+        return r.json();
+      })
+      .then(function(data){
+        state = Object.assign(
+          { categories: [], budgets: {}, transactions: [], plaidItems: [] },
+          data || {}
+        );
+      });
   }
 
   // Wraps fetch so a failed request surfaces a real, visible error instead
@@ -282,6 +317,17 @@ function initLedgerApp() {
 
     document.getElementById('totalSpent').textContent = fmt(totalSpent);
     document.getElementById('totalBudget').textContent = fmt(totalBudget);
+
+    var needsReauthItems = (state.plaidItems || []).filter(function(i){ return i.needsReauth; });
+    var reauthBanner = document.getElementById('reauthBanner');
+    if (needsReauthItems.length){
+      reauthBanner.classList.add('show');
+      document.getElementById('reauthText').textContent =
+        needsReauthItems.length + (needsReauthItems.length===1 ? ' CONNECTION NEEDS ATTENTION' : ' CONNECTIONS NEED ATTENTION');
+    } else {
+      reauthBanner.classList.remove('show');
+    }
+
     var pending = getPending();
     var banner = document.getElementById('pendingBanner');
     if (pending.length){
@@ -717,6 +763,41 @@ function initLedgerApp() {
   });
 
   // connect a real bank account via Plaid Link
+  // Update-mode Link: fixes a connection Plaid flagged as ITEM_LOGIN_REQUIRED
+  // (changed password, MFA reset, etc.) without deleting and relinking it —
+  // the existing access_token, cursor, and transaction history all stay
+  // intact. No exchange step needed after onSuccess; a normal sync confirms
+  // the item is healthy again and clears the "needs attention" banner.
+  function reconnectItem(itemLocalId){
+    apiFetch('/api/plaid/create-update-link-token', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ id: itemLocalId })
+    })
+      .then(function(data){
+        if (!data.link_token) throw new Error('No link_token returned');
+        if (!window.Plaid) throw new Error('Plaid Link script not loaded yet — try again in a moment');
+        var handler = window.Plaid.create({
+          token: data.link_token,
+          onSuccess: function(){
+            apiFetch('/api/plaid/sync-all', { method:'POST' })
+              .then(function(){ return load(); })
+              .then(function(){ render(); })
+              .catch(showApiError);
+          }
+        });
+        handler.open();
+      })
+      .catch(function(err){
+        console.error(err);
+        alert('Could not start reconnect: ' + err.message);
+      });
+  }
+  document.getElementById('reauthBanner').addEventListener('click', function(){
+    var flagged = (state.plaidItems || []).find(function(i){ return i.needsReauth; });
+    if (flagged) reconnectItem(flagged.id);
+  });
+
   function connectBank(){
     apiFetch('/api/plaid/create-link-token', {
       method:'POST',
@@ -1193,18 +1274,17 @@ function initLedgerApp() {
     render();
   });
 
-  // Render immediately from whatever's already in the database — don't
-  // make the first paint wait on a round trip to Plaid. Then catch up on
-  // anything missed (a failed webhook delivery) quietly in the background.
-  // Reloading always lands on the dashboard now — pending transactions
-  // show via the banner, and opening the categorize flow is a deliberate
-  // tap, not something that happens to you on page load.
-  load().then(function(){
-    render();
+  // Render immediately using the data already fetched server-side (see
+  // getServerSideProps above) — no client-side round-trip needed before
+  // the first real paint, which is what caused the reload flash this was
+  // built to fix. Then catch up in the background on anything that's
+  // changed since that server-side fetch (new Plaid data, a missed
+  // webhook, etc.) via a sync-all + fresh load + re-render.
+  render();
 
-    fetch('/api/plaid/sync-all', { method:'POST' })
-      .catch(function(){ /* fine if nothing's linked yet, or Plaid keys aren't set up */ })
-      .then(function(){ return load(); })
-      .then(function(){ render(); });
-  });
+  fetch('/api/plaid/sync-all', { method:'POST' })
+    .catch(function(){ /* fine if nothing's linked yet, or Plaid keys aren't set up */ })
+    .then(function(){ return load(); })
+    .then(function(){ render(); })
+    .catch(function(err){ console.error('[startup] background refresh failed:', err); });
 }

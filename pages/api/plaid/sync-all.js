@@ -26,13 +26,21 @@ export default async function handler(req, res) {
       try {
         const access_token = decryptToken(row.access_token);
         const result = await syncTransactionsForItem(pool, access_token, row.cursor);
-        await pool.query('update plaid_items set cursor = $1 where item_id = $2', [result.cursor, row.item_id]);
+        await pool.query(
+          'update plaid_items set cursor = $1, needs_reauth = false where item_id = $2',
+          [result.cursor, row.item_id]
+        );
         results.push({ item_id: row.item_id, ok: true, ...result });
       } catch (itemErr) {
+        const errorCode = itemErr.response?.data?.error_code;
         console.error('[sync-all] item ' + row.item_id + ' failed:', itemErr.response?.data || itemErr.message || itemErr);
+        if (errorCode === 'ITEM_LOGIN_REQUIRED') {
+          await pool.query('update plaid_items set needs_reauth = true where item_id = $1', [row.item_id]);
+        }
         results.push({
           item_id: row.item_id,
           ok: false,
+          errorCode: errorCode || null,
           error: itemErr.response?.data?.error_message || itemErr.message || 'Unknown error',
         });
       }
