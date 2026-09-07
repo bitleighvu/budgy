@@ -31,7 +31,7 @@ export default function Home({ initialState }) {
   return (
     <>
       <Head>
-        <title>Budgy - Budget Your Way</title>
+        <title>Budgy — Spending Tracker</title>
       </Head>
 
       <div className="sheet">
@@ -39,7 +39,7 @@ export default function Home({ initialState }) {
           <div className="sticky-header">
             <div className="brand-row">
               <button className="hamburger-btn" id="navMenuBtn" aria-label="Open menu">☰</button>
-              <div className="brand">Budgy</div>
+              <div className="brand">budgy</div>
               <button className="analytics-icon-btn" id="analyticsBtn" aria-label="View analytics">📊</button>
             </div>
             <div className="month-nav">
@@ -789,6 +789,17 @@ function initLedgerApp(initialState) {
               .then(function(){ return load(); })
               .then(function(){ render(); })
               .catch(showApiError);
+          },
+          onExit: function(err, metadata){
+            if (err) {
+              console.error('[Plaid Link (update mode) exited with error]', {
+                error_code: err.error_code,
+                error_message: err.error_message,
+                error_type: err.error_type,
+                link_session_id: metadata && metadata.link_session_id,
+                request_id: err.request_id || (metadata && metadata.request_id),
+              });
+            }
           }
         });
         handler.open();
@@ -921,6 +932,24 @@ function initLedgerApp(initialState) {
                 institutionName: metadata && metadata.institution ? metadata.institution.name : null
               })
             }).then(function(){ return load(); }).then(function(){ render(); closeNavMenu(); }).catch(showApiError);
+          },
+          onExit: function(err, metadata){
+            // Plaid hands back diagnostic info here even when Link fails
+            // before ever reaching onSuccess — a generic "Something went
+            // wrong" in the UI still carries a link_session_id (and often
+            // a request_id) that Plaid support can look up on their end,
+            // even when nothing shows up in your own logs or Dashboard
+            // Activity view. Log it so it's not silently lost.
+            if (err) {
+              console.error('[Plaid Link exited with error]', {
+                error_code: err.error_code,
+                error_message: err.error_message,
+                error_type: err.error_type,
+                link_session_id: metadata && metadata.link_session_id,
+                request_id: err.request_id || (metadata && metadata.request_id),
+                institution: metadata && metadata.institution,
+              });
+            }
           }
         });
         handler.open();
