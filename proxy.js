@@ -5,6 +5,7 @@ import { NextResponse } from 'next/server';
 // login form to authenticate in the first place), and the daily
 // reconciliation cron job (Vercel's cron invoker authenticates with
 // CRON_SECRET instead of a session cookie — see reconcile.js).
+
 export const config = {
   matcher: ['/((?!api/plaid/webhook|api/plaid/reconcile|api/login|login|_next/static|_next/image|favicon.ico).*)'],
 };

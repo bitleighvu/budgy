@@ -1,6 +1,6 @@
 // Checks credentials against AUTH_USER/AUTH_PASSWORD, and on success sets a
 // cookie carrying SESSION_TOKEN — a long random secret that only this
-// server knows, generated once with `openssl rand -hex 32`. middleware.js
+// server knows, generated once with `openssl rand -hex 32`. proxy.js
 // checks incoming requests for a cookie matching that exact value. There's
 // no per-user session store since this is a single-user app: the cookie
 // either matches the one known-good secret or it doesn't.

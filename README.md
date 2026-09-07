@@ -101,7 +101,7 @@ for the webhook, browse the app itself at localhost).
    Get your production `client_id`/`secret` from the Dashboard.
 2. **Set your login credentials and session secret** — `AUTH_USER` /
    `AUTH_PASSWORD` (checked by the login page) and `SESSION_TOKEN`
-   (generate with `openssl rand -hex 32`) in your env. `middleware.js` at
+   (generate with `openssl rand -hex 32`) in your env. `proxy.js` at
    the project root enforces this on every route except the login page
    itself and Plaid's webhook.
 3. **Generate `TOKEN_ENCRYPTION_KEY`**: `openssl rand -hex 32`. Store it
