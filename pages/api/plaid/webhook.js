@@ -69,7 +69,7 @@ export default async function handler(req, res) {
       if (result.added > 0) {
         const plural = result.added === 1 ? '' : 's';
         sendPushToAll({
-          title: 'New transaction' + plural + ' on budgy',
+          title: 'New transaction' + plural + ' on Budgy',
           body: 'Time to categorize ' + result.added + ' transaction' + plural,
           icon: '/budgy.jpg',
           url: '/',

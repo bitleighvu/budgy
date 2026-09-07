@@ -1,6 +1,6 @@
 {
-  "name": "budgy",
-  "short_name": "budgy",
+  "name": "Budgy",
+  "short_name": "Budgy",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#F9F9FC",

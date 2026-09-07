@@ -58,7 +58,7 @@ export default async function handler(req, res) {
       const plural = totalAdded === 1 ? '' : 's';
       try {
         await sendPushToAll({
-          title: 'New transaction' + plural + ' on budgy',
+          title: 'New transaction' + plural + ' on Budgy',
           body: 'Time to categorize ' + totalAdded + ' transaction' + plural,
           icon: '/budgy.jpg',
           url: '/',

@@ -31,7 +31,7 @@ export default function Home({ initialState }) {
   return (
     <>
       <Head>
-        <title>budgy</title>
+        <title>Budgy - Budget Your Way</title>
       </Head>
 
       <div className="sheet">
@@ -39,7 +39,7 @@ export default function Home({ initialState }) {
           <div className="sticky-header">
             <div className="brand-row">
               <button className="hamburger-btn" id="navMenuBtn" aria-label="Open menu">☰</button>
-              <div className="brand">budgy</div>
+              <div className="brand">Budgy</div>
               <button className="analytics-icon-btn" id="analyticsBtn" aria-label="View analytics">📊</button>
             </div>
             <div className="month-nav">

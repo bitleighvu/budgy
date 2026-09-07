@@ -2,7 +2,7 @@ self.addEventListener('push', function (event) {
   var data = {};
   try { data = event.data ? event.data.json() : {}; } catch (e) { /* ignore malformed payload */ }
 
-  var title = data.title || 'budgy';
+  var title = data.title || 'Budgy';
   var options = {
     body: data.body || 'You have new transactions to categorize.',
     icon: data.icon || undefined,

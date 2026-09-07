@@ -32,11 +32,11 @@ export default function Login() {
   return (
     <>
       <Head>
-        <title>Sign in — budgy</title>
+        <title>Sign in — Budgy</title>
       </Head>
       <div className="login-wrap">
         <div className="login-card">
-          <div className="login-brand">budgy</div>
+          <div className="login-brand">Budgy</div>
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label htmlFor="username">Username</label>

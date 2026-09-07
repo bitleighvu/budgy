@@ -1,4 +1,4 @@
-# budgy
+# Budgy
 
 Budgy is a mobile-first personal budgeting app that connects to your real bank and credit card accounts via the Plaid API, automatically pulling in new transactions for you to categorize and track against monthly budgets. It's built as a single-user application by design — this lets it run on Plaid's free Trial plan (up to 10 linked accounts) rather than requiring a commercial Plaid integration. Each person who deploys Budgy uses their own Plaid client_id and secret, so their own accounts stay within that 10-connection limit rather than sharing a pool with other users.
 
