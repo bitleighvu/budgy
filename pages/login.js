@@ -32,7 +32,7 @@ export default function Login() {
   return (
     <>
       <Head>
-        <title>Sign in — Budgy</title>
+        <title>Budgy - Sign In</title>
       </Head>
       <div className="login-wrap">
         <div className="login-card">
