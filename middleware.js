@@ -10,7 +10,7 @@ export const config = {
   matcher: ['/((?!api/plaid/webhook|api/plaid/reconcile|api/login|login|_next/static|_next/image|favicon.ico).*)'],
 };
 
-export function proxy(req) {
+export function middleware(req) {
   const session = req.cookies.get('budgy_session');
   if (session && session.value === process.env.SESSION_TOKEN) {
     return NextResponse.next();
