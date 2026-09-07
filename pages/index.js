@@ -31,7 +31,7 @@ export default function Home({ initialState }) {
   return (
     <>
       <Head>
-        <title>Budgy — Spending Tracker</title>
+        <title>Budgy — Budget Your Way</title>
       </Head>
 
       <div className="sheet">
