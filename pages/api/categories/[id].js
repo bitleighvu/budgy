@@ -24,14 +24,20 @@ export default async function handler(req, res) {
   }
 
   if (req.method === 'PATCH') {
-    // Currently only used to unarchive (archived: false) from Manage
-    // Categories, but accepts either direction.
+    // Accepts archived (boolean) and/or name (string) — either or both,
+    // whatever the caller wants to change.
     try {
-      const { archived } = req.body;
-      if (typeof archived !== 'boolean') {
-        return res.status(400).json({ error: 'archived (boolean) is required' });
-      }
-      await pool.query('update categories set archived = $1 where id = $2', [archived, id]);
+      const { archived, name } = req.body;
+      const fields = [];
+      const values = [];
+      let i = 1;
+      if (typeof archived === 'boolean') { fields.push(`archived = $${i++}`); values.push(archived); }
+      if (typeof name === 'string' && name.trim()) { fields.push(`name = $${i++}`); values.push(name.trim()); }
+
+      if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
+
+      values.push(id);
+      await pool.query(`update categories set ${fields.join(', ')} where id = $${i}`, values);
       return res.status(200).json({ ok: true });
     } catch (err) {
       console.error(err);
