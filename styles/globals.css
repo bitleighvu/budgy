@@ -188,6 +188,14 @@
   .field-checkbox input{ margin-top:3px; flex:none; width:16px; height:16px; }
   .field-checkbox label{ font-family:'Space Grotesk',sans-serif; font-size:13px; color:var(--ink); line-height:1.4; }
   .field-hint{ font-family:'IBM Plex Mono',monospace; font-size:10px; color:var(--ink-soft); }
+  .backfill-saved-msg{
+    display:inline-block; opacity:0; max-height:0; overflow:hidden;
+    transition:opacity .25s ease, max-height .25s ease, padding .25s ease, margin .25s ease;
+    font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; color:var(--green);
+    background:#EAFBF0; border:1px solid var(--green); border-radius:var(--radius);
+    padding:0 12px; width:100%; box-sizing:border-box;
+  }
+  .backfill-saved-msg.show{ opacity:1; max-height:80px; padding:10px 12px; margin:-8px 0 16px; }
   .export-presets{ display:flex; flex-wrap:wrap; gap:8px; }
   .export-preset{
     background:var(--paper-dim); border:1px solid var(--rule); color:var(--ink);
@@ -210,6 +218,12 @@
     background-position:right 12px center;
   }
   .field input:focus, .field select:focus{ outline:2px solid var(--blue); outline-offset:1px; }
+  .txn-delete-link{
+    display:flex; align-items:center; gap:7px; background:none; border:none;
+    color:var(--red); font-family:'Space Grotesk',sans-serif; font-size:13px;
+    font-weight:600; cursor:pointer; padding:12px 4px 0; width:100%; text-align:left;
+  }
+  .txn-delete-link:hover{ text-decoration:underline; }
   .modal-actions{ display:flex; gap:10px; margin-top:18px; }
   .modal-actions button{ flex:1; padding:11px; border-radius:var(--radius); font-family:'Aptos','Segoe UI',sans-serif; font-weight:600; font-size:13px; cursor:pointer; }
   .btn-primary{ background:var(--blue); color:#fff; border:none; }

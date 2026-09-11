@@ -477,6 +477,7 @@ function initLedgerApp(initialState) {
       '<div class="field"><label>Details</label><div style="font-family:\'IBM Plex Mono\',monospace;font-size:13px;color:var(--ink-soft);padding:2px 0 4px;">'+escapeHtml(t.merchant)+' · '+fmt(t.amount)+' · '+t.date+'</div></div>'+
       '<div class="field"><label for="editCat">Category</label><select id="editCat">'+options+'</select></div>'+
       '<div class="field"><label for="editDesc">Description (optional)</label><input id="editDesc" type="text" placeholder="e.g. Split with roommate" value="'+escapeHtml(t.description||'')+'"></div>'+
+      '<button class="txn-delete-link" id="deleteTxnBtn">🗑 Delete transaction</button>'+
       '<div class="modal-actions">'+
         '<button class="btn-secondary" id="cancelEdit">Cancel</button>'+
         '<button class="btn-primary" id="confirmEdit">Save</button>'+
@@ -495,6 +496,38 @@ function initLedgerApp(initialState) {
         render();
         if (document.getElementById('azOverlay').classList.contains('open')) renderAnalytics();
       });
+    });
+    document.getElementById('deleteTxnBtn').addEventListener('click', function(){
+      openConfirmDeleteTransaction(t);
+    });
+  }
+
+  function openConfirmDeleteTransaction(t){
+    modal.innerHTML =
+      '<h2>Delete this transaction?</h2>'+
+      '<p style="font-size:13px;color:var(--ink-soft);margin:0 0 4px;">'+escapeHtml(t.merchant)+' · '+fmt(t.amount)+' · '+t.date+'</p>'+
+      '<p style="font-size:13px;color:var(--ink-soft);margin:8px 0 4px;">This can\'t be undone.</p>'+
+      '<div class="modal-actions">'+
+        '<button class="btn-secondary" id="cancelDeleteTxn">Cancel</button>'+
+        '<button class="btn-primary" id="confirmDeleteTxn" style="background:var(--red);">Delete</button>'+
+      '</div>';
+    document.getElementById('cancelDeleteTxn').addEventListener('click', function(){ openEditTransaction(t); });
+    document.getElementById('confirmDeleteTxn').addEventListener('click', function(){
+      var btn = document.getElementById('confirmDeleteTxn');
+      btn.disabled = true;
+      btn.textContent = 'Deleting…';
+      apiFetch('/api/transactions/' + t.id, { method:'DELETE' })
+        .then(function(){ return load(); })
+        .then(function(){
+          closeModal();
+          render();
+          if (document.getElementById('azOverlay').classList.contains('open')) renderAnalytics();
+        })
+        .catch(function(err){
+          btn.disabled = false;
+          btn.textContent = 'Delete';
+          showApiError(err);
+        });
     });
   }
 
@@ -852,7 +885,7 @@ function initLedgerApp(initialState) {
         '<div class="field"><label for="backfillMonth">Month</label><input type="month" id="backfillMonth"></div>'+
         '<div class="field"><label for="backfillSpent">Amount spent</label><input type="number" min="0" step="0.01" id="backfillSpent" placeholder="0.00"></div>'+
         '<div class="field"><label for="backfillBudget">Budget for that month (optional)</label><input type="number" min="0" step="0.01" id="backfillBudget" placeholder="0.00"></div>'+
-        '<div class="field-hint" id="backfillSavedMsg" style="visibility:hidden;">Saved ✓</div>'+
+        '<div class="backfill-saved-msg" id="backfillSavedMsg"></div>'+
         '<div class="modal-actions">'+
           '<button class="btn-secondary" id="cancelBackfill">Done</button>'+
           '<button class="btn-primary" id="confirmBackfill">Save</button>'+
@@ -922,11 +955,14 @@ function initLedgerApp(initialState) {
             render();
             confirmBtn.disabled = false;
             confirmBtn.textContent = 'Save';
+            var catObj = state.categories.find(function(c){ return c.id===categoryId; });
+            var monthLabel = monthNames[parseInt(month.split('-')[1],10)-1] + ' ' + month.split('-')[0];
             document.getElementById('backfillSpent').value = '';
             document.getElementById('backfillBudget').value = '';
             var savedMsg = document.getElementById('backfillSavedMsg');
-            savedMsg.style.visibility = 'visible';
-            setTimeout(function(){ savedMsg.style.visibility = 'hidden'; }, 1800);
+            savedMsg.textContent = '✓ Saved ' + fmt(spent) + ' to ' + (catObj ? catObj.name : 'category') + ' for ' + monthLabel;
+            savedMsg.classList.add('show');
+            setTimeout(function(){ savedMsg.classList.remove('show'); }, 3000);
           })
           .catch(function(err){
             confirmBtn.disabled = false;
@@ -985,21 +1021,32 @@ function initLedgerApp(initialState) {
         var importBtn = document.getElementById('confirmBulkImport');
         importBtn.disabled = true;
         importBtn.textContent = 'Importing…';
+        var importedCount = parsedEntries.length;
         apiFetch('/api/transactions/bulk-backfill', {
           method:'POST',
           headers:{'Content-Type':'application/json'},
           body: JSON.stringify({ entries: parsedEntries })
         })
-          .then(function(){ return load(); })
+          .then(function(result){
+            return load().then(function(){ return result; });
+          })
           .then(function(result){
             render();
             document.getElementById('backfillBulkText').value = '';
             parsedEntries = [];
             refreshBulkPreview();
+            var summary = document.getElementById('backfillBulkSummary');
+            var msg = '<span class="backfill-saved-msg show">✓ Imported '+result.inserted+' row'+(result.inserted===1?'':'s')+'</span>';
+            if (result.errors && result.errors.length){
+              msg += '<br><span style="color:var(--red);">'+result.errors.length+' row'+(result.errors.length===1?'':'s')+' failed — '+
+                result.errors.map(function(e){ return 'Line '+e.row+': '+escapeHtml(e.error); }).join(', ')+
+              '</span>';
+            }
+            summary.innerHTML = msg;
           })
           .catch(function(err){
             importBtn.disabled = false;
-            importBtn.textContent = 'Import ' + parsedEntries.length + ' rows';
+            importBtn.textContent = 'Import ' + importedCount + ' rows';
             showApiError(err);
           });
       });
