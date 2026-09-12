@@ -225,8 +225,10 @@ function initLedgerApp(initialState, options) {
 
   function statusFor(spent, budget){
     if (!budget) return 'none';
+    var spentCents = Math.round(spent * 100);
+    var budgetCents = Math.round(budget * 100);
+    if (spentCents > budgetCents) return 'over';
     var pct = spent / budget * 100;
-    if (pct >= 100) return 'over';
     if (pct >= 80) return 'warn';
     return 'good';
   }
@@ -1428,8 +1430,20 @@ function initLedgerApp(initialState, options) {
     // clipping the old bottom-anchored absolute positioning even though
     // its own computed styles reported normal visibility.
     var rect = col.getBoundingClientRect();
+    // If there isn't roughly enough room above the bar (~85px for the
+    // tooltip itself plus a small gap), flip it to render below instead
+    // — on a small phone screen scrolled so the chart sits near the top
+    // of the visible area, "above" can easily compute to a negative
+    // coordinate, rendering the tooltip off-screen entirely.
+    var showBelow = rect.top < 85;
     tip.style.left = (rect.left + rect.width/2) + 'px';
-    tip.style.top = (rect.top - 10) + 'px';
+    if (showBelow) {
+      tip.style.top = (rect.bottom + 10) + 'px';
+      tip.style.transform = 'translate(-50%, 0)';
+    } else {
+      tip.style.top = (rect.top - 10) + 'px';
+      tip.style.transform = 'translate(-50%, -100%)';
+    }
     tip.hidden = false;
     tip.dataset.forMonth = col.getAttribute('data-month');
   }
