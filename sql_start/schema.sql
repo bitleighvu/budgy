@@ -79,3 +79,36 @@ create table if not exists push_subscriptions (
   auth        text not null,
   created_at  timestamptz not null default now()
 );
+
+-- Guest demo view (see migrations/008_add_guest_tables.sql for full
+-- comments) — entirely separate from everything above, no foreign keys
+-- connecting it to real data.
+create table if not exists guest_categories (
+  id          uuid primary key default gen_random_uuid(),
+  name        text not null,
+  color_idx   int not null default 0,
+  exclude_from_spending boolean not null default false,
+  sort_order  int not null default 0,
+  archived    boolean not null default false,
+  created_at  timestamptz not null default now()
+);
+
+create table if not exists guest_budgets (
+  id            uuid primary key default gen_random_uuid(),
+  category_id   uuid not null references guest_categories(id) on delete cascade,
+  month         text not null,
+  amount_cents  bigint not null,
+  unique(category_id, month)
+);
+
+create table if not exists guest_transactions (
+  id            uuid primary key default gen_random_uuid(),
+  category_id   uuid references guest_categories(id) on delete set null,
+  merchant      text not null,
+  amount_cents  bigint not null,
+  date          date not null,
+  description   text,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists idx_guest_transactions_date on guest_transactions(date);
