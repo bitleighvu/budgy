@@ -64,16 +64,17 @@ export default function Dashboard({ initialState, isGuest }) {
           <div className="nav-title">Menu</div>
           <button className="nav-close" id="navClose" aria-label="Close menu">✕</button>
         </div>
-        {!isGuest && <button className="nav-item" id="connectBankBtn">Connect Bank Account</button>}
+        <button className={'nav-item nav-item-toggle' + (isGuest ? ' nav-item-disabled' : '')} id="connectBankBtn" disabled={isGuest}>
+          <span>Connect Bank Account</span>
+          {isGuest && <span className="owner-only-badge">Owner Only</span>}
+        </button>
         <button className="nav-item" id="manageCategoriesBtn">Edit Budget Categories</button>
         <button className="nav-item" id="backfillBtn">Enter Past Spending</button>
         <button className="nav-item" id="exportBtn">Export Transactions</button>
-        {!isGuest && (
-          <button className="nav-item nav-item-toggle" id="notificationsToggleRow">
-            <span>Notifications</span>
-            <span className="toggle-switch" id="notificationsToggleSwitch"><span className="toggle-knob"></span></span>
-          </button>
-        )}
+        <button className={'nav-item nav-item-toggle' + (isGuest ? ' nav-item-disabled' : '')} id="notificationsToggleRow" disabled={isGuest}>
+          <span>Notifications{isGuest && <span className="owner-only-badge">Owner Only</span>}</span>
+          <span className="toggle-switch" id="notificationsToggleSwitch"><span className="toggle-knob"></span></span>
+        </button>
         {isGuest && <button className="nav-item" id="resetGuestBtn">Reset Demo Data</button>}
         <div className="nav-divider"></div>
         <button className="nav-item nav-item-danger" id="signOutBtn">Sign Out</button>
@@ -878,7 +879,7 @@ function initLedgerApp(initialState, options) {
       modal.innerHTML =
         '<h2>Enter past spending</h2>'+
         tabsHtml+
-        '<p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 16px;">For months before you started using Budgy. Adds one lump-sum transaction for that category/month, and sets its budget if you enter one.</p>'+
+        '<p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 16px;">For months before you started using budgy. Adds one lump-sum transaction for that category/month, and sets its budget if you enter one.</p>'+
         '<div class="field"><label for="backfillCat">Category</label><select id="backfillCat">'+catOptions+'</select></div>'+
         '<div class="field"><label for="backfillMonth">Month</label><input type="month" id="backfillMonth"></div>'+
         '<div class="field"><label for="backfillSpent">Amount spent</label><input type="number" min="0" step="0.01" id="backfillSpent" placeholder="0.00"></div>'+

@@ -124,6 +124,14 @@
   .nav-item:hover{ background:var(--paper-dim); }
   .nav-item:focus-visible{ outline:2px solid var(--blue); outline-offset:-2px; }
   .nav-item-danger{ margin-top:auto; color:var(--red); }
+  .nav-item-disabled{ color:var(--ink-soft); cursor:not-allowed; opacity:0.6; }
+  .nav-item-disabled:hover{ background:none; }
+  .owner-only-badge{
+    display:inline-block; margin-left:8px; padding:2px 7px; border-radius:10px;
+    background:var(--paper-dim); border:1px solid var(--rule); color:var(--ink-soft);
+    font-family:'IBM Plex Mono',monospace; font-size:9px; font-weight:700;
+    letter-spacing:0.05em; text-transform:uppercase; vertical-align:middle;
+  }
   .nav-item-danger:hover{ background:#FDEAEC; }
   .nav-item-toggle{ display:flex; align-items:center; justify-content:space-between; }
   .toggle-switch{

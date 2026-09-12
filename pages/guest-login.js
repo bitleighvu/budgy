@@ -31,11 +31,11 @@ export default function GuestLogin() {
   return (
     <>
       <Head>
-        <title>Guest Demo — Budgy</title>
+        <title>Budgy - Guest Demo</title>
       </Head>
       <div className="login-wrap">
         <div className="login-card">
-          <div className="login-brand">Budgy</div>
+          <div className="login-brand">budgy</div>
           <p style={{fontSize:'12px', color:'var(--ink-soft)', textAlign:'center', margin:'-14px 0 20px'}}>Guest demo — fake data only</p>
           <form onSubmit={handleSubmit}>
             <div className="field">
@@ -54,6 +54,7 @@ export default function GuestLogin() {
               {loading ? 'Entering…' : 'Enter Demo'}
             </button>
           </form>
+          <a href="/login" className="guest-login-link">← Back to Sign In</a>
         </div>
       </div>
     </>
