@@ -401,3 +401,9 @@
 }
 .login-brand{ font-family:'Corben', serif; font-size:28px; font-weight:700; text-align:center; margin-bottom:26px; color:var(--ink); }
 .login-error{ color:var(--red); font-size:13px; margin:-6px 0 14px; font-family:'IBM Plex Mono',monospace; }
+.guest-login-link{
+  display:block; text-align:center; margin-top:18px; padding-top:16px;
+  border-top:1px solid var(--rule); font-family:'Space Grotesk',sans-serif;
+  font-size:13px; font-weight:600; color:var(--blue); text-decoration:none;
+}
+.guest-login-link:hover{ text-decoration:underline; }

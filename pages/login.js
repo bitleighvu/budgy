@@ -32,11 +32,11 @@ export default function Login() {
   return (
     <>
       <Head>
-        <title>Budgy - Sign In</title>
+        <title>Sign in — Budgy</title>
       </Head>
       <div className="login-wrap">
         <div className="login-card">
-          <div className="login-brand">Budgy</div>
+          <div className="login-brand">budgy</div>
           <form onSubmit={handleSubmit}>
             <div className="field">
               <label htmlFor="username">Username</label>
@@ -64,6 +64,7 @@ export default function Login() {
               {loading ? 'Signing in…' : 'Sign In'}
             </button>
           </form>
+          <a href="/guest-login" className="guest-login-link">View Guest Demo →</a>
         </div>
       </div>
     </>
