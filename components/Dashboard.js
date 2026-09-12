@@ -20,7 +20,7 @@ export default function Dashboard({ initialState, isGuest }) {
           <div className="sticky-header">
             <div className="brand-row">
               <button className="hamburger-btn" id="navMenuBtn" aria-label="Open menu">☰</button>
-              <div className="brand">budgy</div>
+              <div className="brand">Budgy</div>
               <button className="analytics-icon-btn" id="analyticsBtn" aria-label="View analytics">📊</button>
             </div>
             <div className="month-nav">
@@ -878,7 +878,7 @@ function initLedgerApp(initialState, options) {
       modal.innerHTML =
         '<h2>Enter past spending</h2>'+
         tabsHtml+
-        '<p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 16px;">For months before you started using budgy. Adds one lump-sum transaction for that category/month, and sets its budget if you enter one.</p>'+
+        '<p style="font-size:12px;color:var(--ink-soft);margin:-8px 0 16px;">For months before you started using Budgy. Adds one lump-sum transaction for that category/month, and sets its budget if you enter one.</p>'+
         '<div class="field"><label for="backfillCat">Category</label><select id="backfillCat">'+catOptions+'</select></div>'+
         '<div class="field"><label for="backfillMonth">Month</label><input type="month" id="backfillMonth"></div>'+
         '<div class="field"><label for="backfillSpent">Amount spent</label><input type="number" min="0" step="0.01" id="backfillSpent" placeholder="0.00"></div>'+
